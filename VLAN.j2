@@ -1,0 +1,9 @@
+
+! routing for vlan {{vlan}}, {{desc}}:
+vrf context {{core_vrf}}
+  ip route {{subnet}} vlan {{vlan}} {{next_hop}}
+ router bgp {{bgp_as}}
+  vrf {{core_vrf}}
+   address-family ipv4 unicast 
+    network {{subnet}}
+
