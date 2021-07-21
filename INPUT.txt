@@ -1,0 +1,22 @@
+#=vim set iskeyword+={
+#=vim set iskeyword+=}
+#=vim syntax match Xansible /{{\S\+}}/
+#=vim high Xansible ctermfg=darkred
+#=vim high Comment ctermfg=darkgreen
+
+# ! routing for vlan {{vlan}}, {{desc}}:
+# vrf context {{core_vrf}}
+#   ip route {{subnet}} vlan {{vlan}} {{next_hop}}
+#  router bgp {{bgp_as}}
+#   vrf {{core_vrf}}
+#    address-family ipv4 unicast 
+#     network {{subnet}}
+
+{{vlan}}       1177
+{{desc}}       STP_HWCONSOLE
+{{core_vrf}}   STM_MGMT
+{{subnet}}     10.10.10.16/28
+{{next_hop}}   172.31.255.129
+{{bgp_as}}     64907
+
+# --- end ---
