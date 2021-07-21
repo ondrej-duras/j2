@@ -36,5 +36,5 @@
       -l - transfroms a .J2 to its example input.csv (csv multiple)
       -s - uses input.txt as single input for single usage of template
       -m - uses input.txt as multiple input for multiple usage of template
-      --vim - VIM editor customisation
+      --vim - VIM editor customization
 
