@@ -1,7 +1,7 @@
 
 ! routing for vlan 910, STP_HWCONSOLES:
 vrf context CORE_STP_MGMT
-  ip route 10.91.10.1/28 vlan 910 10.1.1.1
+  ip route 10.91.10.1/28 vlan 100 10.1.10.1
  router bgp 64902
   vrf CORE_STP_MGMT
    address-family ipv4 unicast 
@@ -10,7 +10,7 @@ vrf context CORE_STP_MGMT
 
 ! routing for vlan 911, STP_OAM:
 vrf context CORE_STP_MGMT
-  ip route 10.91.11.1/28 vlan 911 10.1.1.1
+  ip route 10.91.11.1/28 vlan 110 10.1.11.1
  router bgp 64902
   vrf CORE_STP_MGMT
    address-family ipv4 unicast 
