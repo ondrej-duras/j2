@@ -5,7 +5,7 @@
 # .J2 helper
 
 ## MANUAL ############################################################# {{{ 1
-VERSION = 2021.072101
+VERSION = 2021.072102
 MANUAL  = """
 NAME: J2 - ansible .J2 template parser
 FILE: j2.py
@@ -197,6 +197,7 @@ def learnMultipleCsvItems(src):
   debug("learncsvitems.header.count",out_key_len)
 
   for inx in range(1,len(lines)):
+    out={}
     out_val=re.split("\s*;\s*",lines[inx])
     if len(out_val) != out_key_len:
       debug("learncsvitems.row.count_mistmatch",inx)
@@ -204,8 +205,8 @@ def learnMultipleCsvItems(src):
     for iny in range(out_key_len):
       out[out_key[iny]]=out_val[iny]
     outs.append(out)
-  #if DEBUG:
-  #  debug("learnmultiplecsvitems.outs",outs)
+    if DEBUG:
+      debug("learnmultiplecsvitems.csvline",out)
   return outs
 
 
@@ -225,8 +226,11 @@ def replaceItems(template,source):
 def replaceMultipleItems(template,sources):
   out=""
   debug("replacemultipleitems.sources.count",len(sources))
+  debug("replacemultipleitems.sources.content",sources)
   for source in sources:
     out += replaceItems(template,source)
+    debug("replacemultipleitems.source",source)
+    debug("replacemultipleitems.template",template)
   return out
 
 ####################################################################### }}} 1
@@ -289,8 +293,8 @@ def takeAction():
   if "extract2csv" in ACTIONS:
     if FFLAG & 2:
       debug("action.extract2csv",TEMPLATE_FN)
-      if VIMEXT: print(VIMADD)
       print(extract2csv(TEMPLATE))
+      if VIMEXT: print(VIMADD)
 
 
 ####################################################################### }}} 1
