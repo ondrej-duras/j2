@@ -1,4 +1,4 @@
 {{bgp_as}} ; {{core_vrf}} ; {{desc}}         ; {{next_hop}} ; {{subnet}}    ; {{vlan}}
-64902      ; CORE_STP_MGMT; STP_HWCONSOLES   ; 10.1.1.1     ; 10.91.10.1/28 ; 100
-64902      ; CORE_STP_MGMT; STP_OAM          ; 10.1.1.1     ; 10.91.11.1/28 ; 110
+64902      ; CORE_STP_MGMT; STP_HWCONSOLES   ; 10.1.10.1     ; 10.91.10.1/28 ; 100
+64902      ; CORE_STP_MGMT; STP_OAM          ; 10.1.11.1     ; 10.91.11.1/28 ; 110
 
