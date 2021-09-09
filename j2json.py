@@ -4,7 +4,7 @@
 
 ## MANUAL ############################################################# {{{ 1
 
-VERSION = "2021.090801"
+VERSION = "2021.090802"
 MANUAL  = """
 NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
@@ -22,6 +22,8 @@ DESCRIPTION:
 USAGE:
   j2json.py -t TEMPLATE.j2 -c CONFIG.json -o CONFIG-TICKET.txt
   j2json.py -t TEMPLATE.j2 -c CONFIG.json -s site-x -o CONFIG-TICKET.txt
+  j2json.py -c CONFIG.json -l
+  j2json.py -e TEMPLATE.j2
 
 
 PARAMETERS:
@@ -30,6 +32,7 @@ PARAMETERS:
     -s --sub      - sub-configuration / part-of-configuration
     -o --output   - output file with prepared ticket
     -l --list     - list sub-configuration options
+    -e --extract  - extract all configuration items from a template
 
 SEE ALSO:
   https://github.com/ondrej-duras/
@@ -41,7 +44,9 @@ VERSION: %s GPLv2
 ####################################################################### }}} 1
 ## GLOBALs ############################################################ {{{ 1
 
+
 import sys
+import re
 import json
 
 ACTION   = []  # list of actions
@@ -50,8 +55,10 @@ CONFIG   = {}  # configuration
 SUBCFG   = ""  # name of sub-configuration if used
 OUTFILE  = ""  # output file if used (""=stdout by default)
 
+
 ####################################################################### }}} 1
 ## LIBRARY ############################################################ {{{ 1
+
 
 def prepareConfig(template,config):
   output=template
@@ -63,6 +70,19 @@ def prepareConfig(template,config):
       exit()
     output=output.replace(item,value)
   return output
+
+
+def extractConfig(template):
+  global TEMPLATE
+  out={}
+  for line in TEMPLATE.splitlines():
+    items=re.findall(r"\{\{[0-9A-Za-z_.]+\}\}",line)
+    for item in items:
+      if item in out.keys():
+         out[item]+=1
+      else:
+         out[item]=1
+  return out
 
 
 def listSubConfig(config):
@@ -103,8 +123,10 @@ def writeFile(fname,output):
     print("written to '%s'." % (fname))
   return
 
+
 ####################################################################### }}} 1
 ## ACTIONS ############################################################ {{{ 1
+
 
 def takeAction():
   global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE 
@@ -126,12 +148,17 @@ def takeAction():
     output = prepareConfig(TEMPLATE,cfg)
     writeFile(OUTFILE,output)
 
+  if "extract" in ACTION:
+    print(json.dumps(extractConfig(TEMPLATE),indent=2))
+
+
   if "list" in ACTION:
     listSubConfig(CONFIG)
     
 
 ####################################################################### }}} 1
 ## COMMAND-LINE ####################################################### {{{ 1
+
 
 def commandLine(args=sys.argv):
   global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE 
@@ -146,6 +173,10 @@ def commandLine(args=sys.argv):
     if argx in ("-t","--template"): 
       TEMPLATE=loadFile(args.pop(0))
       ACTION.append("prepare")
+      continue
+    if argx in ("-e","--extract"): 
+      TEMPLATE=loadFile(args.pop(0))
+      ACTION.append("extract")
       continue
     if argx in ("-c","--config"):
       CONFIG=loadJson(args.pop(0))
