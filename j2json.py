@@ -4,7 +4,7 @@
 
 ## MANUAL ############################################################# {{{ 1
 
-VERSION = "2021.090802"
+VERSION = "2021.100701"
 MANUAL  = """
 NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
@@ -54,13 +54,13 @@ TEMPLATE = ""  # template
 CONFIG   = {}  # configuration
 SUBCFG   = ""  # name of sub-configuration if used
 OUTFILE  = ""  # output file if used (""=stdout by default)
-
+FORMAT   = 0   # 1={{}} in cfg, 0=without {{}} in cfg
 
 ####################################################################### }}} 1
 ## LIBRARY ############################################################ {{{ 1
 
 
-def prepareConfig(template,config):
+def prepareConfig(template,config,format=0):
   output=template
   for item in config.keys():
     value=config[item]
@@ -68,11 +68,15 @@ def prepareConfig(template,config):
       print("Error: Hierarchycal configuration ( -s need to be used).")
       print("Error: Item '%s' is subconfig." % (item))
       exit()
-    output=output.replace(item,value)
+    if format == 1 :
+      output=output.replace(str(item),str(value))
+    else:
+      ritem=str("{{" + item + "}}")
+      output=output.replace(ritem,str(value))
   return output
 
 
-def extractConfig(template):
+def extractConfig(template,format=0):
   global TEMPLATE
   out={}
   for line in TEMPLATE.splitlines():
@@ -82,7 +86,13 @@ def extractConfig(template):
          out[item]+=1
       else:
          out[item]=1
-  return out
+  if format == 1 :  return out
+
+  xout = {}
+  for i in out.keys():
+    y=re.sub("[{}]","",i)
+    xout[y]=out[i]
+  return xout
 
 
 def listSubConfig(config):
@@ -129,7 +139,7 @@ def writeFile(fname,output):
 
 
 def takeAction():
-  global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE 
+  global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE,FORMAT 
 
   if len(ACTION) == 0:
     print(MANUAL)
@@ -145,11 +155,11 @@ def takeAction():
     if SUBCFG == "":
       cfg = CONFIG
   
-    output = prepareConfig(TEMPLATE,cfg)
+    output = prepareConfig(TEMPLATE,cfg,FORMAT)
     writeFile(OUTFILE,output)
 
   if "extract" in ACTION:
-    print(json.dumps(extractConfig(TEMPLATE),indent=2))
+    print(json.dumps(extractConfig(TEMPLATE,FORMAT),indent=2))
 
 
   if "list" in ACTION:
@@ -161,7 +171,7 @@ def takeAction():
 
 
 def commandLine(args=sys.argv):
-  global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE 
+  global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE,FORMAT 
 
   argx=args.pop(0)
   if not len(args):
@@ -189,6 +199,12 @@ def commandLine(args=sys.argv):
       continue
     if argx in ("-l","--list"):
       ACTION.append("list")
+      continue
+    if argx in ("-f1","--format=1","-bra"):
+      FORMAT=1
+      continue
+    if argx in ("-f0","--format=0","-no"):
+      FORMAT=0
       continue
     else:
       print("Error: wrong parameter %s" % (argx))
