@@ -1,10 +1,12 @@
 #!/usr/bin/env python2
 # 20210908, Ing. Ondrej DURAS (dury)
 # -*- coding: ascii -*-
+#=vim source $VIM/backup.vim
+#=vim call Backup("C:\\usr\\good-oldies")
 
 ## MANUAL ############################################################# {{{ 1
 
-VERSION = "2021.100701"
+VERSION = "2021.100703"
 MANUAL  = """
 NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
@@ -23,16 +25,20 @@ USAGE:
   j2json.py -t TEMPLATE.j2 -c CONFIG.json -o CONFIG-TICKET.txt
   j2json.py -t TEMPLATE.j2 -c CONFIG.json -s site-x -o CONFIG-TICKET.txt
   j2json.py -c CONFIG.json -l
+  j2json.py -c CONFIG.json -b
   j2json.py -e TEMPLATE.j2
 
 
 PARAMETERS:
-    -t --template - j2 file containing the template
-    -c --config   - json file with configuration parameters
-    -s --sub      - sub-configuration / part-of-configuration
-    -o --output   - output file with prepared ticket
-    -l --list     - list sub-configuration options
-    -e --extract  - extract all configuration items from a template
+    -t  --template - j2 file containing the template
+    -c  --config   - json file with configuration parameters
+    -s  --sub      - sub-configuration / part-of-configuration
+    -o  --output   - output file with prepared ticket
+    -l  --list     - list sub-configuration options
+    -e  --extract  - extract all configuration items from a template
+    -b  --batch    - prepares a batch for masive action
+    -f1 -bra       - adds brackets to keys "{{key}}" /explicit
+    -f0 -no        - suppress brackets in keys "key" /default
 
 SEE ALSO:
   https://github.com/ondrej-duras/
@@ -49,25 +55,47 @@ import sys
 import re
 import json
 
-ACTION   = []  # list of actions
-TEMPLATE = ""  # template
-CONFIG   = {}  # configuration
-SUBCFG   = ""  # name of sub-configuration if used
-OUTFILE  = ""  # output file if used (""=stdout by default)
-FORMAT   = 0   # 1={{}} in cfg, 0=without {{}} in cfg
+ACTION      = []  # list of actions
+TEMPLATE    = ""  # template (file content)
+FN_TEMPLATE = ""  # template (file name)
+CONFIG      = {}  # configuration (file content)
+FN_CONFIG   = {}  # configuration (file name)
+SUBCFG      = ""  # name of sub-configuration if used
+OUTFILE     = ""  # output file if used (""=stdout by default)
+FORMAT      = 0   # 1={{}} in cfg, 0=without {{}} in cfg
 
 ####################################################################### }}} 1
 ## LIBRARY ############################################################ {{{ 1
 
+def prepareMultiline(template,item,values,format=0):
+  if format == 1 :
+    item = item  # expected item "{{key}}"
+  else:
+    item = str("{{" + item + "}}") # expected item "key"
+  output = ""
+  for line in template.splitlines():
+    if item in line:
+      for value in values:
+        newline = line
+        output += newline.replace(item,value) + "\n"
+    else:
+      output += line + "\n"
+  return output
+
 
 def prepareConfig(template,config,format=0):
-  output=template
+  output = template
+  multi  = False
   for item in config.keys():
     value=config[item]
     if isinstance(value,dict):
       print("Error: Hierarchycal configuration ( -s need to be used).")
       print("Error: Item '%s' is subconfig." % (item))
       exit()
+    if isinstance(value,list):
+      multi = True
+      output = prepareMultiline(output,item,value,format)
+      continue
     if format == 1 :
       output=output.replace(str(item),str(value))
     else:
@@ -96,11 +124,14 @@ def extractConfig(template,format=0):
 
 
 def listSubConfig(config):
+  output = []
   for item in config.keys():
     if isinstance(config[item],dict):
       if item == "common":
         continue
-      print(item)
+      #print(item)
+      output.append(item)
+  return sorted(output)
 
 
 def mergeDict(x,y):
@@ -133,6 +164,24 @@ def writeFile(fname,output):
     print("written to '%s'." % (fname))
   return
 
+# if config.json contains more subConfiguration parts,
+# then following j2json -c config.json -b
+# may prepare batch of whole the project rebuild
+def prepareBatch(config):
+  global FN_CONFIG
+  for item in listSubConfig(config):
+    if item is None : continue
+    try:
+      template=config[item]["_TEMPLATE"]
+      output=config[item]["_OUTPUT"]
+    except:
+      continue
+    cmd = str(__file__)
+    cmd += " -c %s" % (FN_CONFIG)
+    cmd += " -s %s" % (item)
+    cmd += " -t %s" % (template)
+    cmd += " >%s"   % (output)
+    print(cmd)
 
 ####################################################################### }}} 1
 ## ACTIONS ############################################################ {{{ 1
@@ -163,15 +212,19 @@ def takeAction():
 
 
   if "list" in ACTION:
-    listSubConfig(CONFIG)
+    # listSubConfig(CONFIG)
+    print("\n".join(listSubConfig(CONFIG)))
     
+  if "batch" in ACTION:
+    prepareBatch(CONFIG)
+
 
 ####################################################################### }}} 1
 ## COMMAND-LINE ####################################################### {{{ 1
 
 
 def commandLine(args=sys.argv):
-  global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE,FORMAT 
+  global ACTION,TEMPLATE,FN_TEMPLATE,CONFIG,FN_CONFIG,SUBCFG,OUTFILE,FORMAT 
 
   argx=args.pop(0)
   if not len(args):
@@ -181,15 +234,18 @@ def commandLine(args=sys.argv):
   while len(args):
     argx=args.pop(0)
     if argx in ("-t","--template"): 
-      TEMPLATE=loadFile(args.pop(0))
+      FN_TEMPLATE=args.pop(0)
+      TEMPLATE=loadFile(FN_TEMPLATE)
       ACTION.append("prepare")
       continue
     if argx in ("-e","--extract"): 
-      TEMPLATE=loadFile(args.pop(0))
+      FN_TEMPLATE=args.pop(0)
+      TEMPLATE=loadFile(FN_TEMPLATE)
       ACTION.append("extract")
       continue
     if argx in ("-c","--config"):
-      CONFIG=loadJson(args.pop(0))
+      FN_CONFIG=args.pop(0)
+      CONFIG=loadJson(FN_CONFIG)
       continue
     if argx in ("-s","--part","--site","--sub"):
       SUBCFG=args.pop(0)
@@ -205,6 +261,9 @@ def commandLine(args=sys.argv):
       continue
     if argx in ("-f0","--format=0","-no"):
       FORMAT=0
+      continue
+    if argx in ("-b","--batch"):
+      ACTION.append("batch")
       continue
     else:
       print("Error: wrong parameter %s" % (argx))
