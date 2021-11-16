@@ -6,7 +6,7 @@
 
 ## MANUAL ############################################################# {{{ 1
 
-VERSION = "2021.100703"
+VERSION = "2021.111703"
 MANUAL  = """
 NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
@@ -24,6 +24,11 @@ DESCRIPTION:
 USAGE:
   j2json.py -t TEMPLATE.j2 -c CONFIG.json -o CONFIG-TICKET.txt
   j2json.py -t TEMPLATE.j2 -c CONFIG.json -s site-x -o CONFIG-TICKET.txt
+  j2json.py -t TEMPLATE.j2 -c COMMAN.json +c SITE-X.json -o CONFIG.txt
+  j2json.py -t VLANS.j2 -v BA_VLAN_ID=100 -v BA_VLAN_NAME=WIFI
+  j2json.py -t TEMPLATE.j2 -sed =begin,=end -c CFG.json 
+  j2json.py -t TEMPLATE.j2 -cut =pod,=cut -c CFG.json 
+  j2json.py -t TEMPLATE.j2 -m CRQ -c CFG.json
   j2json.py -c CONFIG.json -l
   j2json.py -c CONFIG.json -b
   j2json.py -e TEMPLATE.j2
@@ -31,9 +36,15 @@ USAGE:
 
 PARAMETERS:
     -t  --template - j2 file containing the template
+    +t   +template - adds another j2 file containing the template extension
     -c  --config   - json file with configuration parameters
+    +c   +config   - adds another json file with configuration parameters
+    -v  --value    - one variable=value added to configuration parameters
     -s  --sub      - sub-configuration / part-of-configuration
     -o  --output   - output file with prepared ticket
+    -sed  --sed    - include a part of template only
+    -cut  --cut    - exclude a part of template
+    -m  --macro    - similar to -sed above, but works with marker based folds
     -l  --list     - list sub-configuration options
     -e  --extract  - extract all configuration items from a template
     -b  --batch    - prepares a batch for masive action
@@ -67,6 +78,12 @@ FORMAT      = 0   # 1={{}} in cfg, 0=without {{}} in cfg
 ####################################################################### }}} 1
 ## LIBRARY ############################################################ {{{ 1
 
+# called by prepareConfig when input value is a list of values.
+# expands template-lines into multilines, where each line contain one value of the input list of values.
+# values: nets=[1.1.1.1/32,2.2.2.2/32]
+# template: network {{nets}}
+# output: network 1.1.1.1/32
+#         network 2.2.2.2/32
 def prepareMultiline(template,item,values,format=0):
   if format == 1 :
     item = item  # expected item "{{key}}"
@@ -82,7 +99,8 @@ def prepareMultiline(template,item,values,format=0):
       output += line + "\n"
   return output
 
-
+# prepares a final particular configuration, 
+# based on template and config.json
 def prepareConfig(template,config,format=0):
   output = template
   multi  = False
@@ -103,7 +121,8 @@ def prepareConfig(template,config,format=0):
       output=output.replace(ritem,str(value))
   return output
 
-
+# provide a list of parameters/variables required 
+# to prepare final configuration correctly
 def extractConfig(template,format=0):
   global TEMPLATE
   out={}
@@ -122,7 +141,7 @@ def extractConfig(template,format=0):
     xout[y]=out[i]
   return xout
 
-
+# list of .json sub-configurations
 def listSubConfig(config):
   output = []
   for item in config.keys():
@@ -133,13 +152,14 @@ def listSubConfig(config):
       output.append(item)
   return sorted(output)
 
-
+# for 2.x compatibility reasons
+# joins two Dicts together into one Dict
 def mergeDict(x,y):
    z = x.copy()
    z.update(y)
    return z
 
-
+# loads a .json file
 def loadJson(fname):
   fh=open(fname,"r")
   output = json.load(fh)
@@ -164,6 +184,34 @@ def writeFile(fname,output):
     print("written to '%s'." % (fname))
   return
 
+# output is a part of template cut from start-line to stop-line
+def textSed(template,start,stop):
+  output=""
+  fflag=False
+  lena = len(start)
+  lenb = len(stop)
+  if lena == 0: fflag=True
+  for line in template.splitlines():
+    if (lena<>0) and re.match(start,line): fflag=True;  continue  # copying=ON
+    if (lenb<>0) and re.match(stop,line):  fflag=False; continue  # copying=OFF
+    if not fflag: continue
+    output += line + "\n";
+  return output
+
+# cut out a part of template from start-line to stop-line
+def textCut(template,start,stop):
+  output=""
+  fflag=False
+  lena = len(start)
+  lenb = len(stop)
+  if lena == 0: fflag=True
+  for line in template.splitlines():
+    if (lena<>0) and re.match(start,line): fflag=True;  continue  # copying=ON
+    if (lenb<>0) and re.match(stop,line):  fflag=False; continue  # copying=OFF
+    if fflag: continue
+    output += line + "\n";
+  return output
+
 # if config.json contains more subConfiguration parts,
 # then following j2json -c config.json -b
 # may prepare batch of whole the project rebuild
@@ -185,15 +233,17 @@ def prepareBatch(config):
 
 ####################################################################### }}} 1
 ## ACTIONS ############################################################ {{{ 1
-
+# all actions done at this point are the result of previosly called commandLine
 
 def takeAction():
   global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE,FORMAT 
 
+  # if none action defined, then manual is shown only
   if len(ACTION) == 0:
     print(MANUAL)
     print("Error: wrong command-line prameters !")
 
+  # prepares the particular sub/configuration
   if "prepare" in ACTION:
     cfg={}
   
@@ -207,21 +257,23 @@ def takeAction():
     output = prepareConfig(TEMPLATE,cfg,FORMAT)
     writeFile(OUTFILE,output)
 
+  # prepares a list of required parameters in a json template
   if "extract" in ACTION:
     print(json.dumps(extractConfig(TEMPLATE,FORMAT),indent=2))
 
-
+  # list all sub-configurations (each should be callable separatelly)
   if "list" in ACTION:
     # listSubConfig(CONFIG)
     print("\n".join(listSubConfig(CONFIG)))
-    
+
+  # lists commands to call all sub-configs in a sequence
   if "batch" in ACTION:
     prepareBatch(CONFIG)
 
 
 ####################################################################### }}} 1
 ## COMMAND-LINE ####################################################### {{{ 1
-
+# based on content of commandline parameters it prepares a list of actions called later
 
 def commandLine(args=sys.argv):
   global ACTION,TEMPLATE,FN_TEMPLATE,CONFIG,FN_CONFIG,SUBCFG,OUTFILE,FORMAT 
@@ -238,6 +290,31 @@ def commandLine(args=sys.argv):
       TEMPLATE=loadFile(FN_TEMPLATE)
       ACTION.append("prepare")
       continue
+    if argx in ("+t","+template"): 
+      FN_TEMPLATE=args.pop(0)
+      TEMPLATE+=loadFile(FN_TEMPLATE)
+      ACTION.append("prepare")
+      continue
+    if argx in ("-sed","--sed"):
+      (START,STOP)=str(args.pop(0)).split(",",1)
+      TEMPLATE=textSed(TEMPLATE,START,STOP)
+      continue
+    if argx in ("-cut","--cut"):
+      (START,STOP)=str(args.pop(0)).split(",",1)
+      TEMPLATE=textCut(TEMPLATE,START,STOP)
+      continue
+    if argx in ("-start","--start"):
+      START=args.pop(0)
+      TEMPLATE=textSed(TEMPLATE,START,"")
+      continue
+    if argx in ("-stop","--stop"):
+      STOP=args.pop(0)
+      TEMPLATE=textSed(TEMPLATE,"",STOP)
+      continue
+    if argx in ("-m","-macro","--macro"):
+      MACRO=args.pop(0)
+      TEMPLATE=textSed(TEMPLATE,"## "+MACRO,"#####")
+      continue
     if argx in ("-e","--extract"): 
       FN_TEMPLATE=args.pop(0)
       TEMPLATE=loadFile(FN_TEMPLATE)
@@ -246,6 +323,15 @@ def commandLine(args=sys.argv):
     if argx in ("-c","--config"):
       FN_CONFIG=args.pop(0)
       CONFIG=loadJson(FN_CONFIG)
+      continue
+    if argx in ("+c","+config"):
+      FN_CONFIG=args.pop(0)
+      CONFIG=mergeDict(CONFIG,loadJson(FN_CONFIG))
+      continue
+    if argx in ("-v","--value","--variable","-val","-var"):
+      PARAM=args.pop(0)
+      (KEY,VAL)=PARAM.split("=",1)
+      CONFIG[KEY]=VAL
       continue
     if argx in ("-s","--part","--site","--sub"):
       SUBCFG=args.pop(0)
