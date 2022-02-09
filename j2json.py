@@ -6,7 +6,7 @@
 
 ## MANUAL ############################################################# {{{ 1
 
-VERSION = "2022.020702"
+VERSION = "2022.020703"
 MANUAL  = """
 NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
@@ -226,6 +226,13 @@ def loadJson(fname):
     output = json.loads(text2)
   except ValueError as err:
     print(err)  # this exception
+    lerr=re.sub("^.*line ","",str(err))
+    lerr=re.sub(" col.*$","",lerr)
+    lerr=int(lerr)
+    try:
+      print("Error is at:" + (text2.splitlines()[lerr])) 
+    except:
+      pass
     exit()      # shows where the error is
   return output
 
