@@ -6,7 +6,7 @@
 
 ## MANUAL ############################################################# {{{ 1
 
-VERSION = "2022.020701"
+VERSION = "2022.020702"
 MANUAL  = """
 NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
@@ -282,6 +282,10 @@ def textCut(template,start,stop):
 # may prepare batch of whole the project rebuild
 def prepareBatch(config):
   global FN_CONFIG
+  self_name = re.sub(r"^.*[/\\]","",str(__file__))
+  #print(":: %s" % (__file__))
+  #print(":: %s" % (self_name))
+  
   for item in listSubConfig(config):
     if item is None : continue
     try:
@@ -289,7 +293,7 @@ def prepareBatch(config):
       output=config[item]["_OUTPUT"]
     except:
       continue
-    cmd = str(__file__)
+    cmd = self_name
     cmd += " -c %s" % (FN_CONFIG)
     cmd += " -s %s" % (item)
     cmd += " -t %s" % (template)
