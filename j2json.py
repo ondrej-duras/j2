@@ -6,7 +6,7 @@
 
 ## MANUAL ############################################################# {{{ 1
 
-VERSION = "2022.020703"
+VERSION = "2022.031704"
 MANUAL  = """
 NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
@@ -32,26 +32,31 @@ USAGE:
   j2json.py -c CONFIG.json -l
   j2json.py -c CONFIG.json -b
   j2json.py -e TEMPLATE.j2
+  j2json.py -E TEMPLATE.j2
 
 
 PARAMETERS:
-    -t  --template - j2 file containing the template
-    +t   +template - adds another j2 file containing the template extension
-    -c  --config   - json file with configuration parameters
-    +c   +config   - adds another json file with configuration parameters
-    -v  --value    - one variable=value added to configuration parameters
-    -s  --sub      - sub-configuration / part-of-configuration
-    -o  --output   - output file with prepared ticket
-    -sed  --sed    - include a part of template only
-    -cut  --cut    - exclude a part of template
-    -m  --macro    - similar to -sed above, but works with marker based folds
-    -l  --list     - list sub-configuration options
-    -e  --extract  - extract all configuration items from a template
-    -b  --batch    - prepares a batch for masive action
-    -f1 -bra       - adds brackets to keys "{{key}}" /explicit
-    -f0 -no        - suppress brackets in keys "key" /default
+    -t  --template  - j2 file containing the template
+    +t   +template  - adds another j2 file containing the template extension
+    -c  --config    - json file with configuration parameters
+    +c   +config    - adds another json file with configuration parameters
+    -v  --value     - one variable=value added to configuration parameters
+    -s  --sub       - sub-configuration / part-of-configuration
+    -o  --output    - output file with prepared ticket
+    -sed  --sed     - include a part of template only
+    -cut  --cut     - exclude a part of template
+    -m  --macro     - similar to -sed above, but works with marker based folds
+    -l  --list      - list sub-configuration options
+    -e  --extract   - extract all configuration items from a template - detail
+    -E  --Extract   - extract all configuration items from a template - simplified
+    -b  --batch     - prepares a batch for masive action
+    -f1 -bra        - adds brackets to keys "{{key}}" /explicit
+    -f0 -no         - suppress brackets in keys "key" /default
+    -f3 --filters   - uses filters (default) (have a look to FILTERS dict)
+    -f4 --nofilters - does not use filters 
     -h  --help     - this help
     -h2 --help2    - .json input file format - file example
+    -h3 --help3    - usage of filters
 
 SEE ALSO:
   https://github.com/ondrej-duras/
@@ -98,7 +103,45 @@ MANUAL2 = """
 }
 }
 """
+MANUAL3 = """
+CONFIG = {
+  'net_a': '1.1.1.0/24', 
+  'net_b': '2.2.2.16/24', 
+  'uprava': 'KONIEC.', 
+  'pozdrav': 'ahoj'
+}
+TEMPLATE = \"\"\"
+  # private part
+  {{pozdrav|upper()}}
+  {{net_a|addhost(2)}} {{net_b|addhost(3)}}
+  {{net_a|addhost(0)}} {{net_b|addhost(3)}}
+  {{net_a|iphost(5)}} {{net_b|iphost(0)}}
 
+  # ansible compactible part
+  {{net_a|ansible.netcommon.nthhost(4)}}/{{net_a|ansible.netcommon.hostmask()}}
+  {{net_a|ipaddr(3)}}
+  {{uprava|lower()}}
+\"\"\"
+
+OUTPUT = \"\"\"
+  # private part
+  AHOJ
+  1.1.1.2 2.2.2.19
+  1.1.1.0 2.2.2.19
+  1.1.1.5/24 2.2.2.16/24
+
+  # ansible compactible part
+  1.1.1.4/24
+  1.1.1.3
+  koniec.
+\"\"\"
+
+Each filter must be a function with two mandatory parameters:
+The first is value of key from configuration, the second
+is parameter, mentiond in .J2 template after pipe '|'
+
+Have a look more at variable FILTERS in source code.
+"""
 
 
 ####################################################################### }}} 1
@@ -108,6 +151,7 @@ MANUAL2 = """
 import sys
 import re
 import json
+import itertools
 
 ACTION      = []  # list of actions
 TEMPLATE    = ""  # template (file content)
@@ -117,6 +161,110 @@ FN_CONFIG   = {}  # configuration (file name)
 SUBCFG      = ""  # name of sub-configuration if used
 OUTFILE     = ""  # output file if used (""=stdout by default)
 FORMAT      = 0   # 1={{}} in cfg, 0=without {{}} in cfg
+USE_FILTERS = 1   # 1=uses filters 0= does not use filters (-f3 / -f4)
+
+####################################################################### }}} 1
+## Filters - IP math ################################################## {{{ 1
+
+def filter_upper(text,param):
+  return str(text).upper()
+
+def filter_lower(text,param):
+  return str(text).lower()
+
+
+def filter_dbghost(addr_p,sft):
+  # IP IP/M IP/MASK => binary_ip
+  sft = sft.strip("'\"")
+  print(addr_p)
+  addr_1 = re.sub("\/.*","",addr_p)
+  if "/" in addr_p:
+    mask = re.sub("^.*/","/",addr_p)
+  else:
+    mask = ""
+  print(addr_1)
+  print(mask)
+  (a,b,c,d)=addr_1.split(".")
+  print("%s %s %s %s" % (a,b,c,d))
+  addr_i=((int(a)*256+int(b))*256+int(c))*256+int(d)
+  print(addr_i)
+
+  # binary_ip => string_ip
+  sd=str(addr_i >>  0 & 255)
+  sc=str(addr_i >>  8 & 255)
+  sb=str(addr_i >> 16 & 255)
+  sa=str(addr_i >> 24 & 255)
+  addr_s="%s.%s.%s.%s%s" % (sa,sb,sc,sd,mask)
+  print("%s >> %i >> %s" % (addr_p,addr_i,addr_s))
+
+# nezachovana masku
+def filter_addhost(addr_p,sft):
+  # IP IP/M IP/MASK => binary_ip
+  sft = sft.strip("'\"")
+  addr_1 = re.sub("\/.*","",addr_p)
+  (a,b,c,d)=addr_1.split(".")
+  addr_i=((int(a)*256+int(b))*256+int(c))*256+int(d)
+
+  addr_i += int(sft)
+
+  # binary_ip => string_ip
+  sd=str(addr_i >>  0 & 255)
+  sc=str(addr_i >>  8 & 255)
+  sb=str(addr_i >> 16 & 255)
+  sa=str(addr_i >> 24 & 255)
+  addr_s="%s.%s.%s.%s" % (sa,sb,sc,sd)
+  return addr_s
+
+# zachovava masku, ak bola definovana
+def filter_iphost(addr_p,sft):
+  # IP IP/M IP/MASK => binary_ip
+  sft = sft.strip("'\"")
+  addr_1 = re.sub("\/.*","",addr_p)
+  if "/" in addr_p:
+    mask = re.sub("^.*/","/",addr_p)
+  else:
+    mask = ""
+  (a,b,c,d)=addr_1.split(".")
+  addr_i=((int(a)*256+int(b))*256+int(c))*256+int(d)
+
+  addr_i += int(sft)
+
+  # binary_ip => string_ip
+  sd=str(addr_i >>  0 & 255)
+  sc=str(addr_i >>  8 & 255)
+  sb=str(addr_i >> 16 & 255)
+  sa=str(addr_i >> 24 & 255)
+  addr_s="%s.%s.%s.%s%s" % (sa,sb,sc,sd,mask)
+  return addr_s
+
+# returns ip_mask only
+# example
+# {{net_a}} => 10.0.0.0/8
+# {{net_a|ipmask()}} => /8
+# {{net_a|addhost(1)}}{{net_a|ipmask()}} => 10.0.0.1/8
+def filter_ipmask(addr_p,parm):
+  if "/" in addr_p:
+    mask = re.sub("^.*/","/",addr_p)
+  else:
+    mask = ""
+  return mask 
+
+def filter_hostmask(addr_p,parm):
+  if "/" in addr_p:
+    mask = re.sub("^.*/","",addr_p)
+  else:
+    mask = ""
+  return mask 
+
+
+
+FILTERS={
+  "addhost":filter_addhost,"iphost":filter_iphost,"ipmask":filter_ipmask,"ipaddr":filter_addhost,
+  "prefix":filter_hostmask,"hostmask":filter_hostmask,
+  "ansible.netcommon.nthhost":filter_addhost,"ansible.netcommon.hostmask":filter_hostmask,
+  "ansible.netcommon.next_nth_usable":filter_addhost,"ansible.netcommon.prefix":filter_hostmask,
+  "upper":filter_upper,"lower":filter_lower
+}
 
 ####################################################################### }}} 1
 ## LIBRARY ############################################################ {{{ 1
@@ -164,13 +312,38 @@ def prepareConfig(template,config,format=0):
       output=output.replace(ritem,str(value))
   return output
 
+
+
+def prepareFilters(template,config,filters=FILTERS):
+  OUTPUT=config.copy()
+  for item in itertools.product(config.keys(),filters.keys()):
+    config_key=item[0] ; config_val=config[config_key]
+    filter_key=item[1] ; filter_val=filters[filter_key]
+    pattern = "\\{\\{%s\\|%s\\([^)]*\\)\\}\\}" % (config_key,filter_key)
+    #print("---")
+    #print(pattern)
+    for found in re.finditer(pattern,template):
+       found_str=found.group(0)
+       filter_par = re.sub(r"^.*\(","",found_str)
+       filter_par = re.sub(r"\)\}\}$","",filter_par)
+       filter_out = filter_val(config_val,filter_par)
+       found_str = re.sub(r"^\{\{","",found_str)
+       found_str = re.sub(r"\}\}$","",found_str)
+       #print("%s ==> %s" % (found_str,filter_out))
+       OUTPUT[found_str] = filter_out
+  return OUTPUT
+
+
+
+
 # provide a list of parameters/variables required 
 # to prepare final configuration correctly
-def extractConfig(template,format=0):
+def extractConfigDetailed(template,format=0):
   global TEMPLATE
   out={}
   for line in TEMPLATE.splitlines():
-    items=re.findall(r"\{\{[0-9A-Za-z_.]+\}\}",line)
+    #items=re.findall(r"\{\{[0-9A-Za-z_.]+\}\}",line)
+    items=re.findall(r"\{\{[0-9A-Za-z_.|()']+\}\}",line)
     for item in items:
       if item in out.keys():
          out[item]+=1
@@ -181,6 +354,27 @@ def extractConfig(template,format=0):
   xout = {}
   for i in out.keys():
     y=re.sub("[{}]","",i)
+    xout[y]=out[i]
+  return xout
+
+# provide a list of parameters/variables required 
+# to prepare final configuration correctly
+def extractConfigSimplified(template,format=0):
+  global TEMPLATE
+  out={}
+  for line in TEMPLATE.splitlines():
+    #items=re.findall(r"\{\{[0-9A-Za-z_.]+\}\}",line)
+    items=re.findall(r"\{\{[0-9A-Za-z_.]+[}|]",line)
+    for item in items:
+      if item in out.keys():
+         out[item]+=1
+      else:
+         out[item]=1
+  if format == 1 :  return out
+
+  xout = {}
+  for i in out.keys():
+    y=re.sub("[{|}]","",i)
     xout[y]=out[i]
   return xout
 
@@ -312,7 +506,7 @@ def prepareBatch(config):
 # all actions done at this point are the result of previosly called commandLine
 
 def takeAction():
-  global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE,FORMAT 
+  global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE,FORMAT,FILTERS 
 
   # if none action defined, then manual is shown only
   if len(ACTION) == 0:
@@ -325,6 +519,9 @@ def takeAction():
   if "help2" in ACTION:
     print(MANUAL2)
 
+  if "help3" in ACTION:
+    print(MANUAL3)
+
   # prepares the particular sub/configuration
   if "prepare" in ACTION:
     cfg={}
@@ -335,13 +532,20 @@ def takeAction():
       cfg.update(CONFIG["common"])
     if SUBCFG == "":
       cfg = CONFIG
+
+    if USE_FILTERS == 1:
+      cfg = prepareFilters(TEMPLATE,cfg,FILTERS)
   
     output = prepareConfig(TEMPLATE,cfg,FORMAT)
     writeFile(OUTFILE,output)
 
   # prepares a list of required parameters in a json template
-  if "extract" in ACTION:
-    print(json.dumps(extractConfig(TEMPLATE,FORMAT),indent=2))
+  if "extract_detail" in ACTION:
+    print(json.dumps(extractConfigDetailed(TEMPLATE,FORMAT),indent=2))
+
+  # prepares a list of required parameters in a json template
+  if "extract_simple" in ACTION:
+    print(json.dumps(extractConfigSimplified(TEMPLATE,FORMAT),indent=2))
 
   # list all sub-configurations (each should be callable separatelly)
   if "list" in ACTION:
@@ -372,6 +576,9 @@ def commandLine(args=sys.argv):
       continue 
     if argx in ("-h2","--help2","-?2"):
       ACTION.append("help2")
+      continue 
+    if argx in ("-h3","--help3","-?3"):
+      ACTION.append("help3")
       continue 
     if argx in ("-t","--template"): 
       FN_TEMPLATE=args.pop(0)
@@ -406,7 +613,12 @@ def commandLine(args=sys.argv):
     if argx in ("-e","--extract"): 
       FN_TEMPLATE=args.pop(0)
       TEMPLATE=loadFile(FN_TEMPLATE)
-      ACTION.append("extract")
+      ACTION.append("extract_detail")
+      continue
+    if argx in ("-E","--Extract"): 
+      FN_TEMPLATE=args.pop(0)
+      TEMPLATE=loadFile(FN_TEMPLATE)
+      ACTION.append("extract_simple")
       continue
     if argx in ("-c","--config"):
       FN_CONFIG=args.pop(0)
@@ -436,6 +648,14 @@ def commandLine(args=sys.argv):
     if argx in ("-f0","--format=0","-no"):
       FORMAT=0
       continue
+
+    if argx in ("-f3","--filters","-fil"):
+      USE_FILTERS=1
+      continue
+    if argx in ("-f4","--nofilters","-nofil"):
+      USE_FILTERS=0
+      continue
+
     if argx in ("-b","--batch"):
       ACTION.append("batch")
       continue
