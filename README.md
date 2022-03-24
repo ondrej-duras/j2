@@ -1,5 +1,6 @@
 # j2json
-``NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
+::
+NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
 
 DESCRIPTION:
@@ -55,4 +56,3 @@ SEE ALSO:
   https://github.com/ondrej-duras/
 
 VERSION: 2022.032402 GPLv2
-``
