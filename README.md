@@ -5,7 +5,6 @@
     FILE: j2.py
     
     DESCRIPTION:
-      Do you hate ansible ?
       For the preparation of some configuration 
       change have you been instructed to use 
       ansible .J2 templates only ?
