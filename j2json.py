@@ -6,7 +6,7 @@
 
 ## MANUAL ############################################################# {{{ 1
 
-VERSION = "2022.031704"
+VERSION = "2022.032402"
 MANUAL  = """
 NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
@@ -54,9 +54,11 @@ PARAMETERS:
     -f0 -no         - suppress brackets in keys "key" /default
     -f3 --filters   - uses filters (default) (have a look to FILTERS dict)
     -f4 --nofilters - does not use filters 
-    -h  --help     - this help
-    -h2 --help2    - .json input file format - file example
-    -h3 --help3    - usage of filters
+    -h  --help      - this help
+    -h2 --help2     - .json input file format - file example
+    -h3 --help3     - usage of filters
+    -sf --supported - lists supported filters
+    -df --describe  - describe filter/s in detail  
 
 SEE ALSO:
   https://github.com/ondrej-duras/
@@ -152,6 +154,7 @@ import sys
 import re
 import json
 import itertools
+import time
 
 ACTION      = []  # list of actions
 TEMPLATE    = ""  # template (file content)
@@ -162,9 +165,18 @@ SUBCFG      = ""  # name of sub-configuration if used
 OUTFILE     = ""  # output file if used (""=stdout by default)
 FORMAT      = 0   # 1={{}} in cfg, 0=without {{}} in cfg
 USE_FILTERS = 1   # 1=uses filters 0= does not use filters (-f3 / -f4)
+DESC_FILTERS= ""  # regular expression to select filters they need to be described --describe
 
 ####################################################################### }}} 1
-## Filters - IP math ################################################## {{{ 1
+## Filters - Strings ################################################## {{{ 1
+# filter_something(text,param)
+# CONFIG:
+#  "text_a" : "some_text_a",
+# TEMPLATE
+#  {{text_a|somethin(param_a)}}
+#
+# OUTPUT:
+#  `filter_something("some_text_a","param_a")`
 
 def filter_upper(text,param):
   return str(text).upper()
@@ -173,7 +185,24 @@ def filter_lower(text,param):
   return str(text).lower()
 
 
-def filter_dbghost(addr_p,sft):
+def filter_date(text,param):
+  return time.strftime("%Y-%m-%d",time.localtime())
+
+def filter_time(text,param):
+  return time.strftime("%H:%M:%S",time.localtime())
+
+
+
+def filter_debuger(text,param):
+  return """
+  DEBUGER
+    text:  %s
+    param: %s\n""" % (text,param)
+
+####################################################################### }}} 1
+## Filters - IP math _old ############################################# {{{ 1
+
+def filter_dbghost_old(addr_p,sft):
   # IP IP/M IP/MASK => binary_ip
   sft = sft.strip("'\"")
   print(addr_p)
@@ -198,7 +227,8 @@ def filter_dbghost(addr_p,sft):
   print("%s >> %i >> %s" % (addr_p,addr_i,addr_s))
 
 # nezachovana masku
-def filter_addhost(addr_p,sft):
+# cuts off the mask on output even defined on input
+def filter_addhost_old(addr_p,sft):
   # IP IP/M IP/MASK => binary_ip
   sft = sft.strip("'\"")
   addr_1 = re.sub("\/.*","",addr_p)
@@ -216,7 +246,8 @@ def filter_addhost(addr_p,sft):
   return addr_s
 
 # zachovava masku, ak bola definovana
-def filter_iphost(addr_p,sft):
+# keeps mask on output if defined on input
+def filter_iphost_old(addr_p,sft):
   # IP IP/M IP/MASK => binary_ip
   sft = sft.strip("'\"")
   addr_1 = re.sub("\/.*","",addr_p)
@@ -242,28 +273,105 @@ def filter_iphost(addr_p,sft):
 # {{net_a}} => 10.0.0.0/8
 # {{net_a|ipmask()}} => /8
 # {{net_a|addhost(1)}}{{net_a|ipmask()}} => 10.0.0.1/8
-def filter_ipmask(addr_p,parm):
+def filter_ipmask_old(addr_p,parm):
   if "/" in addr_p:
     mask = re.sub("^.*/","/",addr_p)
   else:
     mask = ""
   return mask 
 
-def filter_hostmask(addr_p,parm):
+def filter_hostmask_old(addr_p,parm):
   if "/" in addr_p:
     mask = re.sub("^.*/","",addr_p)
   else:
     mask = ""
   return mask 
 
+####################################################################### }}} 1
+## Filters - IP math ################################################## {{{ 1
+
+
+def filter_ip_addr(text,param):
+  pass
+
+def filter_ip_host(text,param):
+  pass
+
+# cuts off the mask on output even defined on input
+def filter_ip_plus(addr_p,sft):
+  # IP IP/M IP/MASK => binary_ip
+  sft = sft.strip("'\"")
+  addr_1 = re.sub("\/.*","",addr_p)
+  (a,b,c,d)=addr_1.split(".")
+  addr_i=((int(a)*256+int(b))*256+int(c))*256+int(d)
+
+  addr_i += int(sft)
+
+  # binary_ip => string_ip
+  sd=str(addr_i >>  0 & 255)
+  sc=str(addr_i >>  8 & 255)
+  sb=str(addr_i >> 16 & 255)
+  sa=str(addr_i >> 24 & 255)
+  addr_s="%s.%s.%s.%s" % (sa,sb,sc,sd)
+  return addr_s
+
+def filter_ip_prefix(text,param):
+  pass
+
+def filter_ip_mask(text,param):
+  pass
+
+def filter_ip_wild(text,param):
+  pass
+
+def filter_ip_network(text,param):
+  pass
+
+def filter_ip_netonly(text,param):
+  pass
+
+def filter_ip_bcast(text,param):
+  pass
+
+def filter_ip_first(text,param):
+  pass
+
+def filter_ip_last(text,param):
+  pass
+
+####################################################################### }}} 1
+## Filters - references to implementation ############################# {{{ 1
 
 
 FILTERS={
-  "addhost":filter_addhost,"iphost":filter_iphost,"ipmask":filter_ipmask,"ipaddr":filter_addhost,
-  "prefix":filter_hostmask,"hostmask":filter_hostmask,
-  "ansible.netcommon.nthhost":filter_addhost,"ansible.netcommon.hostmask":filter_hostmask,
-  "ansible.netcommon.next_nth_usable":filter_addhost,"ansible.netcommon.prefix":filter_hostmask,
-  "upper":filter_upper,"lower":filter_lower
+  # input for ip_* firlers should be allways in two possible formats 1.1.1.1 or 1.1.1.1/2
+  # where 1 are octets of IPv4 address, 2 is a prefix.
+  "ip_addr":[filter_ip_addr,"{{10.1.1.1/24|ip_addr(4)}} => 10.1.1.4/24 ...draft"],
+  "ip_host":[filter_ip_host,"{{10.1.1.1/24|ip_host(4)}} => 10.1.1.4 ...draft"],
+  "ip_plus":[filter_ip_plus,"{{10.1.1.1/24|ip_plus(4)}} => 10.1.1.5"],
+  "ip_prefix":[filter_ip_prefix,"{{10.1.1.1/24|ip_prefix()}} => 24 ...draft"],
+  "ip_mask":[filter_ip_mask,"{{10.1.1.1/24|ip_mask()}} => 255.255.255.0 ...draft"],
+  "ip_wild":[filter_ip_wild,"{{10.1.1.1/24|ip_wild()}} => 0.0.0.255 ...draft"],
+  "ip_network":[filter_ip_network,"{{10.1.1.1/24|ip_network()}} => 10.1.1.0/24 ...draft"],
+  "ip_netonly":[filter_ip_netonly,"{{10.1.1.1/24|ip_netonly()}} => 10.1.1.0 ...draft"],
+  "ip_bcast":[filter_ip_bcast,"{{10.1.1.1/24|ip_bcast()}} => 10.1.1.255 ..draft"],
+  "ip_first":[filter_ip_first,"{{10.1.1.8/24|ip_first()}} => 10.1.1.1 ..draft"],
+  "ip_last":[filter_ip_last,"{{10.1.1.8/24|ip_last()}} => 10.1.1.254 ..draft"],
+
+  "addhost":[filter_addhost_old,"DEPRECATED. - used in v02 templates"],
+  "iphost":[filter_iphost_old,"DEPRECATED. - used in v02 templates"],
+  "ipmask":[filter_ipmask_old,"DEPRECATED. - used in v02 templates"],
+  "ipaddr":[filter_addhost_old,"DEPRECATED. - used in v02 templates"],
+  "prefix":[filter_hostmask_old,"DEPRECATED. - used in v02 templates"],
+  "hostmask":[filter_hostmask_old,"DEPRECATED. - used in v02 templates"],
+  "ansible.netcommon.nthhost":[filter_addhost_old,"not used yet. intended for ansible compatibility"],
+  "ansible.netcommon.hostmask":[filter_hostmask_old,"not used yet. intended for ansible compatibility"],
+  "ansible.netcommon.next_nth_usable":[filter_addhost_old,"not used yet. intended for ansible compatibility"],
+  "ansible.netcommon.prefix":[filter_hostmask_old,"not used yet. intended for ansible compatibility"],
+  "upper":[filter_upper,"{{Something|upper()}} => SOMETHING"],
+  "lower":[filter_lower,"{{Something|lower()}} => something"],
+  "date":[filter_date,"{{Something|date()}} => 2022-03-24 ...actual date ..untested"],
+  "time":[filter_time,"{{Something|time()()}} => 22:11:00 ...actual time ..untested"]
 }
 
 ####################################################################### }}} 1
@@ -318,7 +426,7 @@ def prepareFilters(template,config,filters=FILTERS):
   OUTPUT=config.copy()
   for item in itertools.product(config.keys(),filters.keys()):
     config_key=item[0] ; config_val=config[config_key]
-    filter_key=item[1] ; filter_val=filters[filter_key]
+    filter_key=item[1] ; filter_val=filters[filter_key][0]
     pattern = "\\{\\{%s\\|%s\\([^)]*\\)\\}\\}" % (config_key,filter_key)
     #print("---")
     #print(pattern)
@@ -388,6 +496,28 @@ def listSubConfig(config):
       #print(item)
       output.append(item)
   return sorted(output)
+
+# list supported filters
+def listFilters(filters=FILTERS):
+  for item in sorted(filters.keys()):
+    method=filters[item][0]
+    descr=filters[item][1]
+    print("%s :: %s" % (str(item),str(descr)))
+
+# describe filters
+def describeFilters(filter_name,filters=FILTERS):
+  for item in sorted(filters.keys()):
+    if not re.match(filter_name,item):
+      continue
+    method=filters[item][0]
+    descr=filters[item][1]
+    print("NAME: %s" % (str(item)))
+    print("REF:  %s" % (str(method)))
+    print("DESCR:") 
+    print("  %s" % (str(descr)))
+    if(len(filters[item])>2):
+      print(filters[item][2])
+    print("")
 
 # for 2.x compatibility reasons
 # joins two Dicts together into one Dict
@@ -506,7 +636,8 @@ def prepareBatch(config):
 # all actions done at this point are the result of previosly called commandLine
 
 def takeAction():
-  global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE,FORMAT,FILTERS 
+  global ACTION,TEMPLATE,CONFIG,SUBCFG,OUTFILE,FORMAT
+  global FILTERS,DESC_FILTERS
 
   # if none action defined, then manual is shown only
   if len(ACTION) == 0:
@@ -556,6 +687,13 @@ def takeAction():
   if "batch" in ACTION:
     prepareBatch(CONFIG)
 
+  # list all supported filters
+  if "list_filters" in ACTION:
+    listFilters()
+
+  # describe supported filters
+  if "descr_filters" in ACTION:
+    describeFilters(DESC_FILTERS,FILTERS)
 
 ####################################################################### }}} 1
 ## COMMAND-LINE ####################################################### {{{ 1
@@ -563,6 +701,7 @@ def takeAction():
 
 def commandLine(args=sys.argv):
   global ACTION,TEMPLATE,FN_TEMPLATE,CONFIG,FN_CONFIG,SUBCFG,OUTFILE,FORMAT 
+  global FILTERS,DESC_FILTERS
 
   argx=args.pop(0)
   if not len(args):
@@ -659,6 +798,17 @@ def commandLine(args=sys.argv):
     if argx in ("-b","--batch"):
       ACTION.append("batch")
       continue
+
+    if argx in ("-sf","--supported","--supported-filters"):
+      ACTION.append("list_filters")
+      continue
+
+    if argx in ("-df","--describe","--describe-filters"):
+      ACTION.append("descr_filters")
+      DESC_FILTERS=args.pop(0)
+      continue
+
+
     else:
       print("Error: wrong parameter %s" % (argx))
       exit()
