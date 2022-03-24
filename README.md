@@ -1,6 +1,5 @@
 # j2json
-``
-NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
+``NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
 
 DESCRIPTION:
