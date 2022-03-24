@@ -1,39 +1,58 @@
-# J2
-::
-    
-    NAME: J2 - ansible .J2 template parser
-    FILE: j2.py
-    
-    DESCRIPTION:
-      For the preparation of some configuration 
-      change have you been instructed to use 
-      ansible .J2 templates only ?
-      Ok. This script could help you.
-      For the most basic cases you should 
-      not need ansible anymore.
-      This standalone script is for free.
-      You need pure python2 or python3.
-      None additional python modules are needed.
-    
-    EXAMPLES:
-      j2.py -g template.j2 >input.txt
-      j2.py -l template.j2 >input.csv
-      j2.py -s input.txt -t template.j2 >config.cfg
-      j2.py -m input.txt -t template.j2 >config.cfg
-      j2.py -x input.csv -t template.j2 >config.cfg
-    
-    FILE TYPES:
-      template.j2 - .J2 ansible template file
-      config.cfg  - template based outp[ut file - change ticket
-      input.csv   - input file, where each line contains all items
-      input.txt   - input file, where each line contains one item
-                    If multiple inputs are contained, then
-                    particular inputs should be separated by "---"
-        
-    PARAMETERS:
-      -g - transforms a .J2 to its example input.txt (single)
-      -l - transfroms a .J2 to its example input.csv (csv multiple)
-      -s - uses input.txt as single input for single usage of template
-      -m - uses input.txt as multiple input for multiple usage of template
-      --vim - VIM editor customization
+
+NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
+FILE: j2json.py
+
+DESCRIPTION:
+  Mandatory Jinja2 template for ticket preparation ?
+  None Ansible around ?
+  This should help.
+
+  Script needs two things on input:
+   - simple Jinja2 template
+   - json configuration (humanized .json works too)
+  Humanized (.juh as extension) uses # comments
+
+USAGE:
+  j2json.py -t TEMPLATE.j2 -c CONFIG.json -o CONFIG-TICKET.txt
+  j2json.py -t TEMPLATE.j2 -c CONFIG.json -s site-x -o CONFIG-TICKET.txt
+  j2json.py -t TEMPLATE.j2 -c COMMAN.json +c SITE-X.json -o CONFIG.txt
+  j2json.py -t VLANS.j2 -v BA_VLAN_ID=100 -v BA_VLAN_NAME=WIFI
+  j2json.py -t TEMPLATE.j2 -sed =begin,=end -c CFG.json 
+  j2json.py -t TEMPLATE.j2 -cut =pod,=cut -c CFG.json 
+  j2json.py -t TEMPLATE.j2 -m CRQ -c CFG.json
+  j2json.py -c CONFIG.json -l
+  j2json.py -c CONFIG.json -b
+  j2json.py -e TEMPLATE.j2
+  j2json.py -E TEMPLATE.j2
+
+
+PARAMETERS:
+    -t  --template  - j2 file containing the template
+    +t   +template  - adds another j2 file containing the template extension
+    -c  --config    - json file with configuration parameters
+    +c   +config    - adds another json file with configuration parameters
+    -v  --value     - one variable=value added to configuration parameters
+    -s  --sub       - sub-configuration / part-of-configuration
+    -o  --output    - output file with prepared ticket
+    -sed  --sed     - include a part of template only
+    -cut  --cut     - exclude a part of template
+    -m  --macro     - similar to -sed above, but works with marker based folds
+    -l  --list      - list sub-configuration options
+    -e  --extract   - extract all configuration items from a template - detail
+    -E  --Extract   - extract all configuration items from a template - simplified
+    -b  --batch     - prepares a batch for masive action
+    -f1 -bra        - adds brackets to keys "{{key}}" /explicit
+    -f0 -no         - suppress brackets in keys "key" /default
+    -f3 --filters   - uses filters (default) (have a look to FILTERS dict)
+    -f4 --nofilters - does not use filters 
+    -h  --help      - this help
+    -h2 --help2     - .json input file format - file example
+    -h3 --help3     - usage of filters
+    -sf --supported - lists supported filters
+    -df --describe  - describe filter/s in detail  
+
+SEE ALSO:
+  https://github.com/ondrej-duras/
+
+VERSION: 2022.032402 GPLv2
 
