@@ -6,7 +6,7 @@
 
 ## MANUAL ############################################################# {{{ 1
 
-VERSION = "2022.032402"
+VERSION = "2022.032502"
 MANUAL  = """
 NAME: J2JSON Jinja2 Template + JSON Config = Configuration Ticket
 FILE: j2json.py
@@ -167,6 +167,9 @@ FORMAT      = 0   # 1={{}} in cfg, 0=without {{}} in cfg
 USE_FILTERS = 1   # 1=uses filters 0= does not use filters (-f3 / -f4)
 DESC_FILTERS= ""  # regular expression to select filters they need to be described --describe
 
+
+
+
 ####################################################################### }}} 1
 ## Filters - Strings ################################################## {{{ 1
 # filter_something(text,param)
@@ -288,56 +291,175 @@ def filter_hostmask_old(addr_p,parm):
   return mask 
 
 ####################################################################### }}} 1
-## Filters - IP math ################################################## {{{ 1
+## LIBRARY - IP math - binary ######################################### {{{ 1
 
+IPV4_MATH = [
+# prefix[0] mask[1] wildchart[2]
+[ "0" , "0.0.0.0", "255.255.255.255",   0          , 4294967295 ],
+[ "1" , "128.0.0.0", "127.255.255.255", 2147483648 , 2147483647 ],
+[ "2" , "192.0.0.0", "63.255.255.255",  3221225472 , 1073741823 ],
+[ "3" , "224.0.0.0", "31.255.255.255",  3758096384 , 536870911  ],
+[ "4" , "240.0.0.0", "15.255.255.255",  4026531840 , 268435455  ],
+[ "5" , "248.0.0.0", "7.255.255.255",   4160749568 , 134217727  ],
+[ "6" , "252.0.0.0", "3.255.255.255",   4227858432 , 67108863   ],
+[ "7" , "254.0.0.0", "1.255.255.255",   4261412864 , 33554431   ],
+[ "8" , "255.0.0.0", "0.255.255.255",   4278190080 , 16777215   ],
+[ "9" , "255.128.0.0", "0.127.255.255", 4286578688 , 8388607    ],
+["10" , "255.192.0.0", "0.63.255.255",  4290772992 , 4194303    ],
+["11" , "255.224.0.0", "0.31.255.255",  4292870144 , 2097151    ],
+["12" , "255.240.0.0", "0.15.255.255",  4293918720 , 1048575    ],
+["13" , "255.248.0.0", "0.7.255.255",   4294443008 , 524287     ],
+["14" , "255.252.0.0", "0.3.255.255",   4294705152 , 262143     ],
+["15" , "255.254.0.0", "0.1.255.255",   4294836224 , 131071     ],
+["16" , "255.255.0.0", "0.0.255.255",   4294901760 , 65535      ],
+["17" , "255.255.128.0", "0.0.127.255", 4294934528 , 32767      ],
+["18" , "255.255.192.0", "0.0.63.255",  4294950912 , 16383      ],
+["19" , "255.255.224.0", "0.0.31.255",  4294959104 , 8191       ],
+["20" , "255.255.240.0", "0.0.15.255",  4294963200 , 4095       ],
+["21" , "255.255.248.0", "0.0.7.255",   4294965248 , 2047       ],
+["22" , "255.255.252.0", "0.0.3.255",   4294966272 , 1023       ],
+["23" , "255.255.254.0", "0.0.1.255",   4294966784 , 511        ],
+["24" , "255.255.255.0", "0.0.0.255",   4294967040 , 255        ],
+["25" , "255.255.255.128", "0.0.0.127", 4294967168 , 127        ],
+["26" , "255.255.255.192", "0.0.0.63",  4294967232 , 63         ],
+["27" , "255.255.255.224", "0.0.0.31",  4294967264 , 31         ],
+["28" , "255.255.255.240", "0.0.0.15",  4294967280 , 15         ],
+["29" , "255.255.255.248", "0.0.0.7",   4294967288 , 7          ],
+["30" , "255.255.255.252", "0.0.0.3",   4294967292 , 3          ],
+["31" , "255.255.255.254", "0.0.0.1",   4294967294 , 1          ],
+["32" , "255.255.255.255", "0.0.0.0",   4294967295 , 0          ]
+]
 
-def filter_ip_addr(text,param):
-  pass
+# translates IPv4 ascii address into binary form (default endian)
+def ip2bin(text,parm=""):
+  text = re.sub("\/.*","",text)
+  (ba,bb,bc,bd)=text.split(".")
+  addr = ((int(ba)*256+int(bb))*256+int(bc))*256+int(bd)
+  return addr
 
+# translates IPv4 binary address into ascii
+def ip2ascii(addr,parm=""):
+  sd=str(addr >>  0 & 255)
+  sc=str(addr >>  8 & 255)
+  sb=str(addr >> 16 & 255)
+  sa=str(addr >> 24 & 255)
+  text="%s.%s.%s.%s" % (sa,sb,sc,sd)
+  return text
+
+# returns prefix as integer inrange 0..32
+def ipprefix(text,param=""):
+  if "/" in text:
+    prefix = int(re.sub(r"^.*\/","",text))
+  else:
+    prefix = 32
+  if prefix > 32:
+    prefix = 32
+  if prefix < 0:
+    prefix = 32
+  return prefix
+
+# dumps table IPV4_MATH
+def ipdump():
+  out = "[\n"
+  for i in range(0,33,1):
+    (n,m,w) = IPV4_MATH[i]
+    out += "[\"%d\",\"%s\",\"%s\",%d,%d],\n" % (i,m,w,ip2bin(m),ip2bin(w))
+  out += "[\"\",\"\",\"\",0,0]\n]\n"
+  return out 
+
+####################################################################### }}} 1
+## Filters - IP math - ascii ########################################## {{{ 1
+
+# for "10.1.1.8/24" it returns "/24"
+# for "10.1.1.8"    it returns ""
+def filter_ip_suffix(text,param):
+  if "/" in text:
+    suffix = re.sub("^.*\/","/",text)
+  else:
+    suffix = ""
+  return suffix
+
+# for "10.1.1.8/24" it returns "24"
+# for "10.1.1.8"    it returns "32"
+def filter_ip_prefix(text,param):
+  if "/" in text:
+    prefix = re.sub(r"^.*\/","",text)
+  else:
+    prefix = "32"
+  return prefix
+  
+# for text="10.1.1.8/24" param="4"
+# it returns "10.1.1.4"
 def filter_ip_host(text,param):
-  pass
+  global IPV4_MATH
+  addr = ip2bin(text)
+  mask = IPV4_MATH[ipprefix(text)][3]
+  return ip2ascii((addr & mask) + int(param))
+
+# for text="10.1.1.8/24" param="4"
+# it returns "10.1.1.4/24"
+def filter_ip_addr(text,param):
+  return filter_ip_host(text,param) + filter_ip_suffix(text,param)
 
 # cuts off the mask on output even defined on input
-def filter_ip_plus(addr_p,sft):
-  # IP IP/M IP/MASK => binary_ip
-  sft = sft.strip("'\"")
-  addr_1 = re.sub("\/.*","",addr_p)
-  (a,b,c,d)=addr_1.split(".")
-  addr_i=((int(a)*256+int(b))*256+int(c))*256+int(d)
+# simply adds someconstant to existing
+def filter_ip_plus(text,param):
+  return ip2ascii(ip2bin(text) + int(param))
 
-  addr_i += int(sft)
-
-  # binary_ip => string_ip
-  sd=str(addr_i >>  0 & 255)
-  sc=str(addr_i >>  8 & 255)
-  sb=str(addr_i >> 16 & 255)
-  sa=str(addr_i >> 24 & 255)
-  addr_s="%s.%s.%s.%s" % (sa,sb,sc,sd)
-  return addr_s
-
-def filter_ip_prefix(text,param):
-  pass
-
+# returns a mask
+# for 10.1.1.8/24 return 255.255.255.0  
 def filter_ip_mask(text,param):
-  pass
+  return IPV4_MATH[ipprefix(text)][1]
 
+# return a wildchart
+# for 10.1.1.8/24 returns 0.0.0.255
 def filter_ip_wild(text,param):
-  pass
+  return IPV4_MATH[ipprefix(text)][2]
 
-def filter_ip_network(text,param):
-  pass
-
+# returns a network addresswithout the prefix
+# for 10.1.1.8/24 return 10.1.1.0
 def filter_ip_netonly(text,param):
-  pass
+  global IPV4_MATH
+  addr = ip2bin(text)
+  mask = int(IPV4_MATH[ipprefix(text)][3])
+  return ip2ascii(addr & mask)
 
+# returns a network with prefix
+# for 10.1.1.8/24 return 10.1.1.0/24
+def filter_ip_network(text,param):
+  return filter_ip_netonly(text,param)+filter_ip_suffix(text,param)
+ 
+# returns a broadcast address
+# for 10.1.1.8/24 return 10.1.1.255
 def filter_ip_bcast(text,param):
-  pass
+  global IPV4_MATH
+  addr = ip2bin(text)
+  mask = int(IPV4_MATH[ipprefix(text)][3])
+  wild = int(IPV4_MATH[ipprefix(text)][4])
+  return ip2ascii((addr & mask ) + wild)
 
-def filter_ip_first(text,param):
-  pass
+# returns a first valid host
+# for text=10.1.1.8/24 param="" return 10.1.1.1
+# but for 10.1.1.8/24 param="2" returns 10.1.1.2 ...same like iphost
+def filter_ip_first(text,param="1"):
+  global IPV4_MATH
+  if param == "" :  param = "1"
+  addr = ip2bin(text)
+  mask = int(IPV4_MATH[ipprefix(text)][3])
+  return ip2ascii((addr & mask ) + int(param))
 
-def filter_ip_last(text,param):
-  pass
+# returns the last valid host
+# for text="10.1.1.8/24" param="" return 10.1.1.254
+# but for text="10.1.1.8/24" param="2" returns 10.1.1.253
+# and for text="10.1.1.8/24" param="0" returns 10.1.1.255 a broadcast address ...like ip_bcast
+def filter_ip_last(text,param="1"): # 1st "last" is broadcast -1, not -0 ... :-)
+  global IPV4_MATH
+  if param == "" :  param = "1"
+  addr = ip2bin(text)
+  mask = int(IPV4_MATH[ipprefix(text)][3])
+  wild = int(IPV4_MATH[ipprefix(text)][4])
+  return ip2ascii((addr & mask ) + wild - int(param))
+
 
 ####################################################################### }}} 1
 ## Filters - references to implementation ############################# {{{ 1
@@ -349,7 +471,8 @@ FILTERS={
   "ip_addr":[filter_ip_addr,"{{10.1.1.1/24|ip_addr(4)}} => 10.1.1.4/24 ...draft"],
   "ip_host":[filter_ip_host,"{{10.1.1.1/24|ip_host(4)}} => 10.1.1.4 ...draft"],
   "ip_plus":[filter_ip_plus,"{{10.1.1.1/24|ip_plus(4)}} => 10.1.1.5"],
-  "ip_prefix":[filter_ip_prefix,"{{10.1.1.1/24|ip_prefix()}} => 24 ...draft"],
+  "ip_suffix":[filter_ip_suffix,"{{10.1.1.1/24|ipsuffix()}} => /24"],            # suffix returns "suffix" if defined "/24" or "" if not
+  "ip_prefix":[filter_ip_prefix,"{{10.1.1.1/24|ip_prefix()}} => 24 ...draft"],  # prefix returns number 0..32
   "ip_mask":[filter_ip_mask,"{{10.1.1.1/24|ip_mask()}} => 255.255.255.0 ...draft"],
   "ip_wild":[filter_ip_wild,"{{10.1.1.1/24|ip_wild()}} => 0.0.0.255 ...draft"],
   "ip_network":[filter_ip_network,"{{10.1.1.1/24|ip_network()}} => 10.1.1.0/24 ...draft"],
@@ -808,6 +931,9 @@ def commandLine(args=sys.argv):
       DESC_FILTERS=args.pop(0)
       continue
 
+    if argx in ("--ip-dump"):
+      print(ipdump())
+      exit()
 
     else:
       print("Error: wrong parameter %s" % (argx))
@@ -824,3 +950,38 @@ if __name__ == "__main__":
 
 ####################################################################### }}} 1
 # --- end ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
