@@ -1,0 +1,14 @@
+#=vim source $VIM/juh.vim
+
+{
+"comon": {
+  "_TEMPLATE_URL": "https://straka.lab.orange.sk/templates/%"
+},
+
+"test1" : {
+  "_TEMPLATE": "IPV4_MATH-test.j2",
+  "_OUTPUT":   "IPV4_MATH-output.txt",
+  "sample" :   "10.1.1.8/24"
+}
+}
+
